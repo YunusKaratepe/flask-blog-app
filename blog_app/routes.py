@@ -3,6 +3,8 @@ from blog_app.models import User, Post
 from blog_app.forms import RegistrationForm, LoginForm, UpdateAccountForm
 from blog_app import app, db, b # b -> bcrypt
 from flask_login import login_user, current_user, logout_user, login_required
+import secrets, os
+from PIL import Image
 
 posts = []
 
@@ -56,16 +58,37 @@ def logout():
     logout_user()
     return redirect(url_for('home'))
 
+def save_picture(form_picture):
+    random_hex = secrets.token_hex(8)
+    _, file_extension = os.path.splitext(form_picture.filename)
+    picture_file = random_hex + file_extension
+    picture_path = os.path.join(app.root_path, 'static/pics', picture_file)
+    
+    i = Image.open(form_picture)
+    i.thumbnail((128, 128))
+    i.save(picture_path)
+
+    return picture_file
+
 @app.route('/account', methods=['GET', 'POST'])
 @login_required
 def account():
     form = UpdateAccountForm()
+
     if form.validate_on_submit():
+        if form.picture.data:
+            picture_file = save_picture(form.picture.data)
+            current_user.image = picture_file
         current_user.username = form.username.data
         current_user.email = form.email.data
         db.session.commit()
         flash('Your account is updated', 'success')
         return redirect(url_for('account'))
+
+    elif request.method == 'GET':
+        form.username.data = current_user.username
+        form.email.data = current_user.email
+
     image = url_for('static', filename='pics/' + current_user.image)
     return render_template('account.html', title='Account', image=image, form=form)
 
